@@ -33,99 +33,120 @@
 #' @examples
 #' decile_df <- toolkitr::profile_example %>% dplyr::group_by(market_trx_post_decile) %>%
 #' decile(value_var = "market_decile_nbrx_pre",
-#' tie_breaker_var = "source_id", num_groups = 5, group_label = "quintile")
+#' tie_breaker_var = "source_id", num_groups = 5, new_col = "quintile")
 #'
 #' decile_df <- toolkitr::profile_example %>% tile(value_var = "market_decile_nbrx_pre",
 #' tie_breaker_var = "source_id", num_groups = 5,
-#' group_label = "quintile", calc_type = "group by value")
+#' new_col = "quintile", calc_type = "group by value")
 decile <- function(data,
                    unique_id,
-                   value_var = "value",
+                   value_var,
                    num_groups,
-                   group_label,
-                   tie_breaker_var = unique_id,
+                   new_col,
+                   tie_breaker_var = {{ unique_id }},
                    verbose = TRUE,
                    calc_type = "group by value") {
 
+  # Capture symbols as quosures (for later use where needed)
+  unique_id_quo <- rlang::enquo(unique_id)
+  value_var_quo <- rlang::enquo(value_var)
+  new_col_quo <- rlang::enquo(new_col)
+  tie_breaker_quo <- rlang::enquo(tie_breaker_var)
 
   # Initial group_bys
   initial_group_bys <- dplyr::groups(data)
 
-  if (!(value_var %in% colnames(data))){
-    stop(paste0("Variable: ", value_var, " not found in the dataset"))
+  # Check for existence of variables in the dataset
+  if (!rlang::as_name(value_var_quo) %in% colnames(data)) {
+    stop(paste0("Variable: ", rlang::as_name(value_var_quo), " not found in the dataset"))
   }
 
-  if (group_label %in% colnames(data)){
-    stop(paste0("New variable: ", group_label, " already in dataset please use a different name"))
+  if (rlang::as_name(new_col_quo) %in% colnames(data)) {
+    stop(paste0("New variable: ", rlang::as_name(new_col_quo), " already in dataset, please use a different name"))
   }
 
 
-  if (!(nrow(data) == data %>% select(!!rlang::sym(unique_id)) %>% n_distinct())){
+  # Check uniqueness at unique_id level
+  if (!(nrow(data) == data %>% dplyr::select(!!unique_id_quo) %>% dplyr::n_distinct())) {
     stop(paste0("data not unique at unique_id level"))
   }
 
   # Sort
-  if (!is.null(initial_group_bys))
-  {
+  if (!is.null(initial_group_bys)) {
     data <- data %>%
-      dplyr::arrange(dplyr::desc(!!rlang::sym(value_var)), dplyr::desc(!!rlang::sym(tie_breaker_var)), .by_group = TRUE)
-
-  }else
-  {
+      dplyr::arrange(
+        dplyr::desc(!!value_var_quo),
+        dplyr::desc(!!tie_breaker_quo),
+        .by_group = TRUE
+      )
+  } else {
     data <- data %>%
-      dplyr::arrange(dplyr::desc(!!rlang::sym(value_var)), dplyr::desc(!!rlang::sym(tie_breaker_var)))
-
+      dplyr::arrange(
+        dplyr::desc(!!value_var_quo),
+        dplyr::desc(!!tie_breaker_quo)
+      )
   }
 
   # Create normalized index
-  data <- data %>% dplyr::mutate(.index = !!rlang::sym(value_var))
-  data <- data %>% tidyr::replace_na(list(.index=0))
+  data <- data %>% dplyr::mutate(.index = !!value_var_quo)
+  data <- data %>% tidyr::replace_na(list(.index = 0))
 
   data <- data %>%
-    dplyr::mutate(.index = dplyr::if_else(.data$.index < 0, 0, .data$.index),
-                  .index_sum = sum(.data$.index),
-                  .index = .data$.index / .data$.index_sum,
-                  .cum_index = cumsum(.data$.index))
+    dplyr::mutate(
+      .index = dplyr::if_else(.data$.index < 0, 0, .data$.index),
+      .index_sum = sum(.data$.index),
+      .index = .data$.index / .data$.index_sum,
+      .cum_index = cumsum(.data$.index)
+    )
 
-  # determine break points (these are continuous and discrete, so obs with the same value are not in the same decile)
-  data <- data %>% dplyr::mutate(.grps = cut(.data$.cum_index, breaks = seq(0, 1+1/num_groups, by = 1/num_groups),
-                                             labels = paste(seq(num_groups, 0), sep = "_"), include.lowest = F, right = T))
-
-
+  # Determine break points
+  data <- data %>%
+    dplyr::mutate(
+      .grps = cut(
+        .data$.cum_index,
+        breaks = seq(0, 1 + 1 / num_groups, by = 1 / num_groups),
+        labels = paste(seq(num_groups, 0), sep = "_"),
+        include.lowest = FALSE,
+        right = TRUE
+      )
+    )
 
   # Convert the levels to number
   data$.grps <- as.numeric(as.character(data$.grps))
+  data <- data %>%
+    dplyr::mutate(.grps = dplyr::if_else(.data$.index == 0, 0, .data$.grps))
 
-  data <- data %>% dplyr::mutate(.grps = dplyr::if_else(.data$.index == 0, 0, .data$.grps))
+  # Group by value thresholds (optional)
+  if (calc_type == "group by value") {
+    group_by_value_threshold <- data %>%
+      dplyr::group_by(.data$.index, .add = TRUE) %>%
+      dplyr::summarize(.grps_max = max(.data$.grps), .groups = "drop")
 
-  # Get group by value thresholds (the index for each group)
-  if(calc_type == "group by value")
-  {
-    group_by_value_threshold <- data %>% dplyr::group_by(.data$.index, .add = TRUE) %>% dplyr::summarize(.grps_max = max(.data$.grps))
-    data <- data %>% dplyr::left_join(group_by_value_threshold)
-
-    data <- data %>% dplyr::mutate(.grps = .data$.grps_max)
-    data <- data %>% dplyr::select(-.data$.grps_max)
+    data <- data %>%
+      dplyr::left_join(group_by_value_threshold, by = ".index") %>%
+      dplyr::mutate(.grps = .data$.grps_max) %>%
+      dplyr::select(-.data$.grps_max)
   }
 
+  # Rename to final new_col
+  data <- data %>% dplyr::rename(!!new_col_quo := .data$.grps)
 
-  data <- data %>% dplyr::rename(!!rlang::sym(group_label) := .data$.grps)
-
-  # Verbose readout
-  if(verbose==TRUE)
-  {
-    summary <- data %>% dplyr::group_by_(group_label, add = TRUE) %>%
+  # Verbose summary
+  if (verbose == TRUE) {
+    summary <- data %>%
+      dplyr::group_by(!!new_col_quo, .add = TRUE) %>%
       dplyr::summarize(
         n = dplyr::n(),
         dplyr::across(
-          value_var,
+          {{ value_var }},
           list(
-            sum = ~ sum(.x, na.rm = TRUE),
-            min = ~ min(.x, na.rm = TRUE),
-            max = ~ max(.x, na.rm = TRUE)
+            sum = ~sum(.x, na.rm = TRUE),
+            min = ~min(.x, na.rm = TRUE),
+            max = ~max(.x, na.rm = TRUE)
           ),
           .names = "{.fn}_{.col}"
-        )
+        ),
+        .groups = "drop"
       )
     print(summary)
   }
@@ -134,3 +155,4 @@ decile <- function(data,
 
   return(data)
 }
+
