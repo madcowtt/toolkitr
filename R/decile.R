@@ -134,6 +134,10 @@ decile <- function(data,
   # Verbose summary
   if (verbose == TRUE) {
     summary <- data %>%
+      mutate(!!new_col_quo := as.character(!!new_col_quo)) %>%
+      bind_rows(
+        data %>% mutate(!!new_col_quo := "total")
+      ) %>%
       dplyr::group_by(!!new_col_quo, .add = TRUE) %>%
       dplyr::summarize(
         n = dplyr::n(),
