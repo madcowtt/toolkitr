@@ -22,7 +22,7 @@ draw_conc_curves <- function(data,
                                 cust_breaks = c(0.2, 0.5),
                                 keep_first_n_points = 14) {
 
-  value <- enquo(value)
+  value_var <- enquo(value_var)
 
   # Calculate the number that is closest to the target based on absolute distance
   flag_closest <- function(dat, x_col, targets) {
@@ -36,11 +36,11 @@ draw_conc_curves <- function(data,
   }
 
 
-  df %>%
-    dplyr::arrange(desc(!!value), .by_group = TRUE) %>%
+  data %>%
+    dplyr::arrange(desc(!!value_var), .by_group = TRUE) %>%
     dplyr::mutate(
-      cumu_val      = cumsum(coalesce(!!value, 0)),
-      total_sum     = sum(!!value, na.rm = TRUE),
+      cumu_val      = cumsum(coalesce(!!value_var, 0)),
+      total_sum     = sum(!!value_var, na.rm = TRUE),
       cumu_perc_val = if_else(total_sum > 0, cumu_val / total_sum, NA_real_),
       row_num       = row_number(),
       max_row_num   = n(),
