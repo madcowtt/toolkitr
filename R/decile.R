@@ -55,6 +55,7 @@ decile <- function(data,
 
   # Initial group_bys
   initial_group_bys <- dplyr::groups(data)
+  initial_group_bys_char <- dplyr::group_vars(data)
 
   # Check for existence of variables in the dataset
   if (!rlang::as_name(value_var_quo) %in% colnames(data)) {
@@ -122,8 +123,10 @@ decile <- function(data,
       dplyr::group_by(.data$.index, .add = TRUE) %>%
       dplyr::summarize(.grps_max = max(.data$.grps), .groups = "drop")
 
+    join_keys <- c(initial_group_bys_char, ".index")  # if ungrouped, this is just ".index"
+
     data <- data %>%
-      dplyr::left_join(group_by_value_threshold, by = ".index") %>%
+      dplyr::left_join(group_by_value_threshold, by = join_keys) %>%
       dplyr::mutate(.grps = .data$.grps_max) %>%
       dplyr::select(-.data$.grps_max)
   }
