@@ -10,12 +10,12 @@
 #' @returns Returns a new dataframe of all the customers x groups and concentration calculations
 #' @export
 #'
-#' @examples
-#'
 #' @importFrom dplyr arrange
 #' @importFrom dplyr mutate
 #' @importFrom dplyr group_modify
 #' @importFrom dplyr ungroup
+#' @examples
+#' df_curves <- toolkitr::profile_example %>% draw_conc_curves(value_var = "market_decile_nbrx_pre")
 draw_conc_curves <- function(data,
                                 value_var,
                                 value_breaks = seq(0, 1, by = 0.05),
