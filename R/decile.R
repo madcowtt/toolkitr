@@ -31,10 +31,10 @@
 #' @details NAs and negatives are considered 0.
 #' @examples
 #' decile_df <- toolkitr::profile_example %>% dplyr::group_by(market_trx_post_decile) %>%
-#' decile(value_var = "market_decile_nbrx_pre",
+#' decile(unique_id = "source_id", value_var = "market_decile_nbrx_pre",
 #' tie_breaker_var = "source_id", num_groups = 5, new_col = "quintile")
 #'
-#' decile_df <- toolkitr::profile_example %>% decile(value_var = "market_decile_nbrx_pre",
+#' decile_df <- toolkitr::profile_example %>% decile(unique_id = "source_id", value_var = "market_decile_nbrx_pre",
 #' tie_breaker_var = "source_id", num_groups = 5,
 #' new_col = "quintile", calc_type = "group by value")
 decile <- function(data,
@@ -136,11 +136,11 @@ decile <- function(data,
   # Verbose summary
   if (verbose == TRUE) {
     summary <- data %>%
-      mutate(!!new_col_quo := as.character(!!new_col_quo)) %>%
+      mutate(!!new_col_quo := as.character(.data[[new_col]])) %>%
       bind_rows(
         data %>% mutate(!!new_col_quo := "total")
       ) %>%
-      dplyr::group_by(!!new_col_quo, .add = TRUE) %>%
+      dplyr::group_by(!!rlang::sym(new_col), .add = TRUE) %>%
       dplyr::summarize(
         n = dplyr::n(),
         dplyr::across(
@@ -155,6 +155,7 @@ decile <- function(data,
         .groups = "drop"
       )
     print(summary)
+    attr(data, "decile_summary") <- summary  # <-- attach it so it's testable
   }
 
   data <- data %>% dplyr::select(-.data$.index, -.data$.index_sum, -.data$.cum_index)
