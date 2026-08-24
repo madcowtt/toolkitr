@@ -135,6 +135,9 @@ decile <- function(data,
 
   # Verbose summary
   if (verbose == TRUE) {
+    value_var_name <- rlang::as_name(value_var_quo)
+    overall_sum <- data %>% dplyr::pull(!!value_var_quo) %>% sum(na.rm = TRUE)
+
     summary <- data %>%
       mutate(!!new_col_quo := as.character(.data[[new_col]])) %>%
       bind_rows(
@@ -153,9 +156,12 @@ decile <- function(data,
           .names = "{.fn}_{.col}"
         ),
         .groups = "drop"
+      ) %>%
+      dplyr::mutate(
+        pct_of_total = .data[[paste0("sum_", value_var_name)]] / overall_sum
       )
     print(summary)
-    attr(data, "decile_summary") <- summary  # <-- attach it so it's testable
+    attr(data, "decile_summary") <- summary
   }
 
   data <- data %>% dplyr::select(-.data$.index, -.data$.index_sum, -.data$.cum_index)

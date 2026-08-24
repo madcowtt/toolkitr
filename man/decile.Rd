@@ -46,10 +46,10 @@ NAs and negatives are considered 0.
 }
 \examples{
 decile_df <- toolkitr::profile_example \%>\% dplyr::group_by(market_trx_post_decile) \%>\%
-decile(value_var = "market_decile_nbrx_pre",
+decile(unique_id = "source_id", value_var = "market_decile_nbrx_pre",
 tie_breaker_var = "source_id", num_groups = 5, new_col = "quintile")
 
-decile_df <- toolkitr::profile_example \%>\% decile(value_var = "market_decile_nbrx_pre",
+decile_df <- toolkitr::profile_example \%>\% decile(unique_id = "source_id", value_var = "market_decile_nbrx_pre",
 tie_breaker_var = "source_id", num_groups = 5,
 new_col = "quintile", calc_type = "group by value")
 }
