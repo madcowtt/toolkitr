@@ -136,7 +136,16 @@ decile <- function(data,
   # Verbose summary
   if (verbose == TRUE) {
     value_var_name <- rlang::as_name(value_var_quo)
-    overall_sum <- data %>% dplyr::pull(!!value_var_quo) %>% sum(na.rm = TRUE)
+
+    if (length(initial_group_bys_char) > 0) {
+      # grouped case: total is computed WITHIN each original group
+      group_totals <- data %>%
+        dplyr::group_by(!!!rlang::syms(initial_group_bys_char)) %>%
+        dplyr::summarize(.overall_sum = sum(!!value_var_quo, na.rm = TRUE), .groups = "drop")
+    } else {
+      # ungrouped case: single grand total
+      group_totals <- tibble::tibble(.overall_sum = sum(dplyr::pull(data, !!value_var_quo), na.rm = TRUE))
+    }
 
     summary <- data %>%
       mutate(!!new_col_quo := as.character(.data[[new_col]])) %>%
@@ -156,10 +165,22 @@ decile <- function(data,
           .names = "{.fn}_{.col}"
         ),
         .groups = "drop"
-      ) %>%
-      dplyr::mutate(
-        pct_of_total = .data[[paste0("sum_", value_var_name)]] / overall_sum
       )
+
+    if (length(initial_group_bys_char) > 0) {
+      summary <- summary %>%
+        dplyr::left_join(group_totals, by = initial_group_bys_char)
+    } else {
+      summary <- summary %>%
+        dplyr::mutate(.overall_sum = group_totals$.overall_sum)
+    }
+
+    summary <- summary %>%
+      dplyr::mutate(
+        pct_of_total = .data[[paste0("sum_", value_var_name)]] / .overall_sum
+      ) %>%
+      dplyr::select(-.overall_sum)
+
     print(summary)
     attr(data, "decile_summary") <- summary
   }
