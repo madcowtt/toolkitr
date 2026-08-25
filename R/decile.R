@@ -181,11 +181,11 @@ decile <- function(data,
       ) %>%
       dplyr::select(-.overall_sum)
 
-    print(summary)
-    attr(data, "decile_summary") <- summary
+    print(summary, n=30)
   }
 
   data <- data %>% dplyr::select(-.data$.index, -.data$.index_sum, -.data$.cum_index)
+  attr(data, "summary") <- summary
 
   return(data)
 }
